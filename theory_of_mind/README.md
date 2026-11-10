@@ -2,7 +2,8 @@ For Theory of Mind, there are 2 benchmarks where Claude Opus 5.5 has to beat the
 
 I've also chosen a third benchmark to test which is OpenToM (Xu et al., 2024) which covers some of the aspects of Theory of Mind not covered by the other two benchmarks, although the AGI definitions paper only talks about the first two benchmarks.
 
-# TOMBench
+# TOMBench 
+https://github.com/zhchen18/ToMBench
 
 ### Data
 
