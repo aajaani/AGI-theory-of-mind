@@ -1,0 +1,430 @@
+{
+  "claude-code claude-opus-5-5 effort=medium lang=en variant=original": {
+    "n_questions": 192,
+    "attempts_per_question": {
+      "5": 192
+    },
+    "tasks": {
+      "Unexpected Outcome Test": {
+        "n": 24,
+        "acc": 87.5,
+        "human": 89.3
+      },
+      "Scalar Implicature Test": {
+        "n": 24,
+        "acc": 62.5,
+        "human": 75.5
+      },
+      "Persuasion Story Task": {
+        "n": 24,
+        "acc": 66.67,
+        "human": 70.0
+      },
+      "False Belief Task": {
+        "n": 24,
+        "acc": 95.83,
+        "human": 86.8
+      },
+      "Ambiguous Story Task": {
+        "n": 24,
+        "acc": 95.83,
+        "human": 95.0
+      },
+      "Hinting Task Test": {
+        "n": 24,
+        "acc": 100.0,
+        "human": 97.1
+      },
+      "Strange Story Task": {
+        "n": 24,
+        "acc": 100.0,
+        "human": 89.2
+      },
+      "Faux-pas Recognition Test": {
+        "n": 24,
+        "acc": 83.33,
+        "human": 80.4
+      }
+    },
+    "task_average": {
+      "acc": 86.46,
+      "ci95": 4.14,
+      "human": 85.4,
+      "verdict": "inconclusive: the 95% interval includes the human average"
+    },
+    "category": {
+      "Belief": {
+        "n": 48,
+        "acc": 91.67
+      },
+      "Desire": {
+        "n": 26,
+        "acc": 69.23
+      },
+      "Emotion": {
+        "n": 18,
+        "acc": 94.44
+      },
+      "Intention": {
+        "n": 37,
+        "acc": 100.0
+      },
+      "Knowledge": {
+        "n": 24,
+        "acc": 62.5
+      },
+      "Non-Literal Communication": {
+        "n": 39,
+        "acc": 89.74
+      }
+    },
+    "ability": {
+      "Belief: Beliefs based action/emotions": {
+        "n": 14,
+        "acc": 92.86
+      },
+      "Belief: Content false beliefs": {
+        "n": 8,
+        "acc": 87.5
+      },
+      "Belief: Identity false beliefs": {
+        "n": 2,
+        "acc": 100.0
+      },
+      "Belief: Location false beliefs": {
+        "n": 8,
+        "acc": 100.0
+      },
+      "Belief: Second-order beliefs": {
+        "n": 8,
+        "acc": 100.0
+      },
+      "Belief: Sequence false beliefs": {
+        "n": 8,
+        "acc": 75.0
+      },
+      "Desire: Desire-action contradiction": {
+        "n": 2,
+        "acc": 100.0
+      },
+      "Desire: Desires influence on actions/emotions": {
+        "n": 24,
+        "acc": 66.67
+      },
+      "Emotion: Atypical emotional reactions": {
+        "n": 8,
+        "acc": 100.0
+      },
+      "Emotion: Mixed emotions": {
+        "n": 2,
+        "acc": 100.0
+      },
+      "Emotion: Typical emotional reactions": {
+        "n": 8,
+        "acc": 87.5
+      },
+      "Intention: Intentions explanations": {
+        "n": 37,
+        "acc": 100.0
+      },
+      "Knowledge: Information-knowledge links": {
+        "n": 24,
+        "acc": 62.5
+      },
+      "Non-Literal Communication: Egocentric lies": {
+        "n": 2,
+        "acc": 100.0
+      },
+      "Non-Literal Communication: Faux pas": {
+        "n": 24,
+        "acc": 83.33
+      },
+      "Non-Literal Communication: Humor": {
+        "n": 3,
+        "acc": 100.0
+      },
+      "Non-Literal Communication: Involuntary lies": {
+        "n": 3,
+        "acc": 100.0
+      },
+      "Non-Literal Communication: Irony/Sarcasm": {
+        "n": 4,
+        "acc": 100.0
+      },
+      "Non-Literal Communication: White lies": {
+        "n": 3,
+        "acc": 100.0
+      }
+    },
+    "coherent": {
+      "Scalar Implicature Test": {
+        "stories": 4,
+        "acc": 50.0
+      },
+      "Persuasion Story Task": {
+        "stories": 24,
+        "acc": 66.67
+      },
+      "Ambiguous Story Task": {
+        "stories": 1,
+        "acc": 100.0
+      },
+      "Hinting Task Test": {
+        "stories": 18,
+        "acc": 100.0
+      }
+    },
+    "attempts": {
+      "total": 960,
+      "parse_status": {
+        "ok": 960
+      },
+      "unparsed_rate": 0.0,
+      "ties": 0,
+      "input_tokens": 978195,
+      "output_tokens": 46823,
+      "cost_usd": 7.6397
+    }
+  },
+  "claude-code claude-opus-5-5 effort=medium lang=en variant=swapped": {
+    "n_questions": 192,
+    "attempts_per_question": {
+      "5": 192
+    },
+    "tasks": {
+      "Unexpected Outcome Test": {
+        "n": 24,
+        "acc": 83.33,
+        "human": 89.3
+      },
+      "Scalar Implicature Test": {
+        "n": 24,
+        "acc": 62.5,
+        "human": 75.5
+      },
+      "Persuasion Story Task": {
+        "n": 24,
+        "acc": 66.67,
+        "human": 70.0
+      },
+      "False Belief Task": {
+        "n": 24,
+        "acc": 95.83,
+        "human": 86.8
+      },
+      "Ambiguous Story Task": {
+        "n": 24,
+        "acc": 95.83,
+        "human": 95.0
+      },
+      "Hinting Task Test": {
+        "n": 24,
+        "acc": 100.0,
+        "human": 97.1
+      },
+      "Strange Story Task": {
+        "n": 24,
+        "acc": 100.0,
+        "human": 89.2
+      },
+      "Faux-pas Recognition Test": {
+        "n": 24,
+        "acc": 87.5,
+        "human": 80.4
+      }
+    },
+    "task_average": {
+      "acc": 86.46,
+      "ci95": 4.14,
+      "human": 85.4,
+      "verdict": "inconclusive: the 95% interval includes the human average"
+    },
+    "category": {
+      "Belief": {
+        "n": 48,
+        "acc": 91.67
+      },
+      "Desire": {
+        "n": 26,
+        "acc": 69.23
+      },
+      "Emotion": {
+        "n": 18,
+        "acc": 88.89
+      },
+      "Intention": {
+        "n": 37,
+        "acc": 100.0
+      },
+      "Knowledge": {
+        "n": 24,
+        "acc": 62.5
+      },
+      "Non-Literal Communication": {
+        "n": 39,
+        "acc": 92.31
+      }
+    },
+    "ability": {
+      "Belief: Beliefs based action/emotions": {
+        "n": 14,
+        "acc": 92.86
+      },
+      "Belief: Content false beliefs": {
+        "n": 8,
+        "acc": 87.5
+      },
+      "Belief: Identity false beliefs": {
+        "n": 2,
+        "acc": 100.0
+      },
+      "Belief: Location false beliefs": {
+        "n": 8,
+        "acc": 100.0
+      },
+      "Belief: Second-order beliefs": {
+        "n": 8,
+        "acc": 100.0
+      },
+      "Belief: Sequence false beliefs": {
+        "n": 8,
+        "acc": 75.0
+      },
+      "Desire: Desire-action contradiction": {
+        "n": 2,
+        "acc": 100.0
+      },
+      "Desire: Desires influence on actions/emotions": {
+        "n": 24,
+        "acc": 66.67
+      },
+      "Emotion: Atypical emotional reactions": {
+        "n": 8,
+        "acc": 87.5
+      },
+      "Emotion: Mixed emotions": {
+        "n": 2,
+        "acc": 100.0
+      },
+      "Emotion: Typical emotional reactions": {
+        "n": 8,
+        "acc": 87.5
+      },
+      "Intention: Intentions explanations": {
+        "n": 37,
+        "acc": 100.0
+      },
+      "Knowledge: Information-knowledge links": {
+        "n": 24,
+        "acc": 62.5
+      },
+      "Non-Literal Communication: Egocentric lies": {
+        "n": 2,
+        "acc": 100.0
+      },
+      "Non-Literal Communication: Faux pas": {
+        "n": 24,
+        "acc": 87.5
+      },
+      "Non-Literal Communication: Humor": {
+        "n": 3,
+        "acc": 100.0
+      },
+      "Non-Literal Communication: Involuntary lies": {
+        "n": 3,
+        "acc": 100.0
+      },
+      "Non-Literal Communication: Irony/Sarcasm": {
+        "n": 4,
+        "acc": 100.0
+      },
+      "Non-Literal Communication: White lies": {
+        "n": 3,
+        "acc": 100.0
+      }
+    },
+    "coherent": {
+      "Scalar Implicature Test": {
+        "stories": 4,
+        "acc": 25.0
+      },
+      "Persuasion Story Task": {
+        "stories": 24,
+        "acc": 66.67
+      },
+      "Ambiguous Story Task": {
+        "stories": 1,
+        "acc": 100.0
+      },
+      "Hinting Task Test": {
+        "stories": 18,
+        "acc": 100.0
+      }
+    },
+    "attempts": {
+      "total": 960,
+      "parse_status": {
+        "ok": 960
+      },
+      "unparsed_rate": 0.0,
+      "ties": 1,
+      "input_tokens": 979395,
+      "output_tokens": 46215,
+      "cost_usd": 7.5339
+    }
+  },
+  "comparison": {
+    "a": "claude-code claude-opus-5-5 effort=medium lang=en variant=original",
+    "b": "claude-code claude-opus-5-5 effort=medium lang=en variant=swapped",
+    "shared_questions": 192,
+    "both_correct": 162,
+    "only_a_correct": 4,
+    "only_b_correct": 4,
+    "both_wrong": 22,
+    "acc_a": 86.46,
+    "acc_b": 86.46,
+    "mcnemar_p": 1.0,
+    "tasks": {
+      "Unexpected Outcome Test": {
+        "n": 24,
+        "acc_a": 87.5,
+        "acc_b": 83.33
+      },
+      "Scalar Implicature Test": {
+        "n": 24,
+        "acc_a": 62.5,
+        "acc_b": 62.5
+      },
+      "Persuasion Story Task": {
+        "n": 24,
+        "acc_a": 66.67,
+        "acc_b": 66.67
+      },
+      "False Belief Task": {
+        "n": 24,
+        "acc_a": 95.83,
+        "acc_b": 95.83
+      },
+      "Ambiguous Story Task": {
+        "n": 24,
+        "acc_a": 95.83,
+        "acc_b": 95.83
+      },
+      "Hinting Task Test": {
+        "n": 24,
+        "acc_a": 100.0,
+        "acc_b": 100.0
+      },
+      "Strange Story Task": {
+        "n": 24,
+        "acc_a": 100.0,
+        "acc_b": 100.0
+      },
+      "Faux-pas Recognition Test": {
+        "n": 24,
+        "acc_a": 83.33,
+        "acc_b": 87.5
+      }
+    }
+  }
+}
