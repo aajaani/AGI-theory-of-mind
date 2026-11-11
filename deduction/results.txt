@@ -1,0 +1,21 @@
+Category                              Correct  Total  Accuracy
+--------------------------------------------------------------
+Categorical reasoning                     161    178     90.4%
+Sufficient conditional reasoning          256    281     91.1%
+Necessary conditional reasoning           118    124     95.2%
+Disjunctive reasoning                      75     81     92.6%
+Conjunctive reasoning                     218    242     90.1%
+--------------------------------------------------------------
+Overall (all questions)                   274    300     91.3%
+Macro average of categories                              91.9%
+
+Unparseable answers (counted wrong): 0
+Note: a question can belong to several categories, so category totals add up to more than the number of questions.
+Usage over 300 questions:
+  Input tokens               600
+  Output tokens          117,701   (avg 392 per question)
+  Cache read tokens        1,929
+  Cache write tokens     283,566
+  API-equivalent cost $     4.63   (avg $0.015 per question; not charged on Pro)
+  Time                     23.4 min
+  Remaining Pro allowance: run /usage in an interactive `claude` session, or see claude.ai > Settings > Usage.
