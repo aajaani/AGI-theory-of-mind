@@ -17,6 +17,10 @@ Multiple-choice variants (run each with run_logiqa_claude.py):
     distractors.jsonl       two irrelevant sentences added to the passage          [robustness]
     typos.jsonl             small letter swaps in the passage (logic words kept)   [robustness]
     combined.jsonl          renamed + distractors + shuffled options together      [robustness]
+    replace_answer.jsonl    correct option replaced by "None of the other options
+                            is correct" (same slot)                                [memorization]
+    shuffle_replace.jsonl   replace_answer + options shuffled                      [memorization]
+    (the last two follow LogiQA-plus, Bao et al. 2024, arXiv:2310.09430)
 
 Memorization probes (run with run_probes.py):
     probes.jsonl            passage first half -> second half; passage+question -> options
@@ -193,6 +197,32 @@ def v_combined(ex, rng):
     return apply_perm(item, perm)
 
 
+# --- replace the correct answer ----------------------------------------------
+
+NONE_OPTION = "None of the other options is correct."
+
+# Questions asking for the "most"/"best" option are relative: once the real answer is removed,
+# one of the remaining options may arguably become "the best", so the new label is debatable.
+RELATIVE_Q = re.compile(r"\b(most|best|strongest|weakest|least|mainly|primarily|"
+                        r"most likely|most appropriate|most accurate)\b", re.IGNORECASE)
+
+
+def v_replace_answer(ex, rng, variant="replace_answer"):
+    item = copy_item(ex, variant)
+    item["options"] = [strip_label(o) for o in item["options"]]
+    item["options"][item["answer"]] = NONE_OPTION  # answer index stays the same
+    item["relative_q"] = bool(RELATIVE_Q.search(item["question"]))
+    return item
+
+
+def v_shuffle_replace(ex, rng):
+    item = v_replace_answer(ex, rng, variant="shuffle_replace")
+    perm = list(range(len(item["options"])))
+    while perm == list(range(len(perm))):
+        rng.shuffle(perm)
+    return apply_perm(item, perm)
+
+
 # ---------------------------------------------------------------- probes
 
 def make_probes(ex):
@@ -218,6 +248,8 @@ VARIANTS = {
     "distractors": v_distractors,
     "typos": v_typos,
     "combined": v_combined,
+    "replace_answer": v_replace_answer,
+    "shuffle_replace": v_shuffle_replace,
 }
 
 
@@ -249,6 +281,10 @@ def main():
             changed = sum(bool(it["renames"]) for it in items)
             print(f"    (names found and replaced in {changed}/{len(items)} items; "
                   "others are unchanged)")
+        if name == "replace_answer":
+            rel = sum(it["relative_q"] for it in items)
+            print(f"    ({rel}/{len(items)} are 'most/best'-type questions where the new label "
+                  "is debatable; reported separately by compare_runs.py)")
     write("probes", [p for ex in subset for p in make_probes(ex)])
 
 
