@@ -1,0 +1,422 @@
+"""Tests for preflight validation module."""
+
+import os
+import json
+import tempfile
+from pathlib import Path
+from unittest.mock import patch, MagicMock
+
+import pytest
+
+from arc_agi_benchmarking.utils.preflight import (
+    validate_config_exists,
+    validate_api_key,
+    validate_data_dir,
+    validate_output_dir,
+    estimate_cost,
+    run_preflight,
+    ValidationResult,
+    CostEstimate,
+    PreflightReport,
+)
+from arc_agi_benchmarking.schemas import ModelConfig, ModelPricing
+from arc_agi_benchmarking.utils.task_utils import read_models_config, read_provider_rate_limits
+
+
+class TestValidateConfigExists:
+    """Tests for validate_config_exists function."""
+
+    def test_valid_config(self):
+        """Test that a valid config is found."""
+        result = validate_config_exists("gpt-4o-2024-11-20")
+        assert result.passed is True
+        assert "gpt-4o-2024-11-20" in result.message
+
+    def test_invalid_config(self):
+        """Test that an invalid config returns failure."""
+        result = validate_config_exists("nonexistent-model-xyz")
+        assert result.passed is False
+        assert "not found" in result.message.lower()
+
+
+class TestValidateApiKey:
+    """Tests for validate_api_key function."""
+
+    def test_known_provider_with_key(self):
+        """Test that a known provider with an API key passes."""
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test12345678"}):
+            result = validate_api_key("openai", "OPENAI_API_KEY")
+            assert result.passed is True
+            assert "OPENAI_API_KEY" in result.message
+
+    def test_openai_provider_requires_configured_key_name(self):
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test12345678"}):
+            result = validate_api_key("openai")
+
+        assert result.passed is False
+        assert "not configured" in result.message
+        assert "api_key_env" in result.details
+
+    def test_known_provider_without_key(self):
+        """Test that a known provider without an API key fails."""
+        with patch.dict(os.environ, {}, clear=True):
+            result = validate_api_key("deepseek", "DEEPSEEK_API_KEY")
+            assert result.passed is False
+            assert "not found" in result.message.lower()
+
+    def test_config_specific_key_overrides_provider_default(self):
+        with patch.dict(
+            os.environ,
+            {
+                "OPENAI_API_KEY": "sk-openai12345678",
+                "THINKY_API_KEY": "thinky-test12345678",
+            },
+            clear=True,
+        ):
+            result = validate_api_key("openai", "THINKY_API_KEY")
+
+        assert result.passed is True
+        assert "THINKY_API_KEY" in result.message
+
+    def test_missing_config_specific_key_does_not_fall_back(self):
+        with patch.dict(
+            os.environ,
+            {"OPENAI_API_KEY": "sk-openai12345678"},
+            clear=True,
+        ):
+            result = validate_api_key("openai", "THINKY_API_KEY")
+
+        assert result.passed is False
+        assert "THINKY_API_KEY" in result.details
+
+    def test_random_provider_no_key_needed(self):
+        """Test that the random provider doesn't need an API key."""
+        result = validate_api_key("random")
+        assert result.passed is True
+        assert "no api key required" in result.message.lower()
+
+    def test_codex_with_either_key(self):
+        """Test that codex accepts either OPENAI_API_KEY or CODEX_API_KEY."""
+        # Test with OPENAI_API_KEY
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test12345678"}, clear=True):
+            result = validate_api_key("codex", "OPENAI_API_KEY")
+            assert result.passed is True
+
+        # Test with CODEX_API_KEY
+        with patch.dict(os.environ, {"CODEX_API_KEY": "codex-test12345678"}, clear=True):
+            result = validate_api_key("codex", "CODEX_API_KEY")
+            assert result.passed is True
+
+    def test_together_provider_with_key(self):
+        """Test that Together accepts TOGETHER_API_KEY."""
+        with patch.dict(os.environ, {"TOGETHER_API_KEY": "tog-test12345678"}, clear=True):
+            result = validate_api_key("together", "TOGETHER_API_KEY")
+            assert result.passed is True
+            assert "TOGETHER_API_KEY" in result.message
+
+    def test_together_provider_without_key(self):
+        """Test that Together fails clearly without TOGETHER_API_KEY."""
+        with patch.dict(os.environ, {}, clear=True):
+            result = validate_api_key("together", "TOGETHER_API_KEY")
+            assert result.passed is False
+            assert "TOGETHER_API_KEY" in result.details
+
+    def test_together_config_names_its_api_key(self):
+        config = read_models_config("deepseek-v4-pro-together")
+        assert config.api_key_env == "TOGETHER_API_KEY"
+
+
+class TestTogetherConfigIntegration:
+    """Tests for Together model and provider configuration."""
+
+    def test_together_model_config_exists(self):
+        """Test that the Together model config can be loaded."""
+        config = read_models_config("deepseek-v4-pro-together")
+
+        assert config.name == "deepseek-v4-pro-together"
+        assert config.model_name == "deepseek-ai/DeepSeek-V4-Pro"
+        assert config.provider == "together"
+        assert config.kwargs["temperature"] == 0
+        assert config.kwargs["max_tokens"] == 8192
+        assert config.pricing.input == 2.1
+        assert config.pricing.output == 4.4
+
+    def test_together_provider_rate_limit_exists(self):
+        """Test that provider_config.yml includes Together rate limits."""
+        limits = read_provider_rate_limits()
+
+        assert "together" in limits
+        assert limits["together"]["rate"] == 60
+        assert limits["together"]["period"] == 60
+
+    def test_together_config_preflight_exists(self):
+        """Test that preflight can find the Together model config."""
+        result = validate_config_exists("deepseek-v4-pro-together")
+
+        assert result.passed is True
+        assert "deepseek-v4-pro-together" in result.message
+
+
+class TestValidateDataDir:
+    """Tests for validate_data_dir function."""
+
+    def test_valid_data_dir(self):
+        """Test validation of a directory with valid task files."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a valid task file
+            task_file = Path(tmpdir) / "task1.json"
+            task_file.write_text(json.dumps({
+                "train": [{"input": [[1]], "output": [[2]]}],
+                "test": [{"input": [[3]], "output": [[4]]}]
+            }))
+
+            result, task_ids = validate_data_dir(tmpdir)
+            assert result.passed is True
+            assert len(task_ids) == 1
+            assert "task1" in task_ids
+
+    def test_nonexistent_dir(self):
+        """Test validation of a nonexistent directory."""
+        result, task_ids = validate_data_dir("/nonexistent/path/xyz")
+        assert result.passed is False
+        assert len(task_ids) == 0
+        assert "not found" in result.message.lower()
+
+    def test_empty_dir(self):
+        """Test validation of an empty directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result, task_ids = validate_data_dir(tmpdir)
+            assert result.passed is False
+            assert len(task_ids) == 0
+            assert "no task files" in result.message.lower()
+
+    def test_invalid_json_file(self):
+        """Test validation with an invalid JSON file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            invalid_file = Path(tmpdir) / "invalid.json"
+            invalid_file.write_text("not valid json")
+
+            result, task_ids = validate_data_dir(tmpdir)
+            assert result.passed is False
+            assert "invalid" in result.message.lower()
+
+    def test_missing_required_keys(self):
+        """Test validation with a JSON file missing required keys."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a JSON file without 'train' and 'test' keys
+            task_file = Path(tmpdir) / "bad_task.json"
+            task_file.write_text(json.dumps({"data": [1, 2, 3]}))
+
+            result, task_ids = validate_data_dir(tmpdir)
+            assert result.passed is False
+            assert len(task_ids) == 0
+
+
+class TestValidateOutputDir:
+    """Tests for validate_output_dir function."""
+
+    def test_existing_writable_dir(self):
+        """Test validation of an existing writable directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = validate_output_dir(tmpdir)
+            assert result.passed is True
+            assert "writable" in result.message.lower()
+
+    def test_nonexistent_dir_with_writable_parent(self):
+        """Test validation of a nonexistent directory with writable parent."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            new_dir = os.path.join(tmpdir, "new_subdir")
+            result = validate_output_dir(new_dir)
+            assert result.passed is True
+            assert "will be created" in result.message.lower()
+
+    def test_nested_nonexistent_dir_with_writable_ancestor(self):
+        """Test validation when several output path levels do not exist."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "config" / "v1" / "public_eval"
+
+            result = validate_output_dir(str(output_dir))
+
+            assert result.passed is True
+            assert "will be created" in result.message.lower()
+            assert result.details == str(output_dir.absolute())
+            assert output_dir.exists() is False
+
+    def test_nested_output_below_file_is_rejected(self):
+        """Test validation when an existing path component is a file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_path = Path(tmpdir) / "not-a-directory"
+            file_path.write_text("content")
+
+            result = validate_output_dir(str(file_path / "public_eval"))
+
+            assert result.passed is False
+            assert "not a directory" in result.details.lower()
+
+    def test_nested_output_with_unwritable_ancestor_is_rejected(self):
+        """Test validation when the nearest existing ancestor is not writable."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "config" / "v1" / "public_eval"
+            with patch("arc_agi_benchmarking.utils.preflight.os.access", return_value=False):
+                result = validate_output_dir(str(output_dir))
+
+            assert result.passed is False
+            assert "nearest existing parent not writable" in result.details.lower()
+
+    def test_file_instead_of_dir(self):
+        """Test validation when path is a file, not a directory."""
+        with tempfile.NamedTemporaryFile() as tmpfile:
+            result = validate_output_dir(tmpfile.name)
+            assert result.passed is False
+            assert "not a directory" in result.message.lower()
+
+
+class TestEstimateCost:
+    """Tests for estimate_cost function."""
+
+    def test_basic_cost_estimate(self):
+        """Test basic cost estimation."""
+        mock_config = ModelConfig(
+            name="test-model",
+            model_name="test-model",
+            provider="test",
+            api_key_env="TEST_API_KEY",
+            pricing=ModelPricing(date="2024-01-01", input=1.0, output=2.0)
+        )
+
+        estimate = estimate_cost(
+            model_config=mock_config,
+            num_tasks=10,
+            num_attempts=2,
+            avg_input_tokens=1000,
+            avg_output_tokens=500
+        )
+
+        assert estimate.num_tasks == 10
+        assert estimate.num_attempts_per_task == 2
+        assert estimate.total_attempts == 20
+        assert estimate.estimated_input_tokens == 20000  # 10 * 2 * 1000
+        assert estimate.estimated_output_tokens == 10000  # 10 * 2 * 500
+
+        # Cost: (20000/1M) * $1 + (10000/1M) * $2 = $0.02 + $0.02 = $0.04
+        assert estimate.estimated_cost == pytest.approx(0.04, rel=0.01)
+
+    def test_zero_tasks(self):
+        """Test cost estimation with zero tasks."""
+        mock_config = ModelConfig(
+            name="test-model",
+            model_name="test-model",
+            provider="test",
+            api_key_env="TEST_API_KEY",
+            pricing=ModelPricing(date="2024-01-01", input=10.0, output=30.0)
+        )
+
+        estimate = estimate_cost(
+            model_config=mock_config,
+            num_tasks=0,
+            num_attempts=2
+        )
+
+        assert estimate.estimated_cost == 0.0
+
+
+class TestRunPreflight:
+    """Tests for run_preflight function."""
+
+    def test_full_preflight_with_valid_inputs(self):
+        """Test full preflight with all valid inputs."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a valid task file
+            task_file = Path(tmpdir) / "task1.json"
+            task_file.write_text(json.dumps({
+                "train": [{"input": [[1]], "output": [[2]]}],
+                "test": [{"input": [[3]], "output": [[4]]}]
+            }))
+
+            output_dir = os.path.join(tmpdir, "output")
+
+            with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test12345678"}):
+                report = run_preflight(
+                    config_name="gpt-4o-2024-11-20",
+                    data_dir=tmpdir,
+                    output_dir=output_dir,
+                    num_attempts=2
+                )
+
+                assert report.all_passed is True
+                assert report.cost_estimate is not None
+                assert len(report.validations) == 4  # config, api key, data dir, output dir
+
+    def test_task_limit_caps_cost_estimate_but_not_data_validation(self):
+        """Validate all files while estimating only the tasks scheduled this run."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for task_index in range(3):
+                task_file = Path(tmpdir) / f"task{task_index}.json"
+                task_file.write_text(json.dumps({
+                    "train": [{"input": [[1]], "output": [[2]]}],
+                    "test": [{"input": [[3]], "output": [[4]]}]
+                }))
+
+            with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test12345678"}):
+                report = run_preflight(
+                    config_name="gpt-4o-2024-11-20",
+                    data_dir=tmpdir,
+                    output_dir=os.path.join(tmpdir, "output"),
+                    num_attempts=2,
+                    max_tasks_per_run=2,
+                )
+
+        assert report.all_passed is True
+        assert report.cost_estimate is not None
+        assert report.cost_estimate.num_tasks == 2
+        assert report.cost_estimate.total_attempts == 4
+        assert any(
+            "Found 3 valid task files" in validation.message
+            for validation in report.validations
+        )
+
+    def test_preflight_with_invalid_config(self):
+        """Test preflight with an invalid config name."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            report = run_preflight(
+                config_name="nonexistent-model",
+                data_dir=tmpdir,
+                output_dir=tmpdir,
+                num_attempts=2
+            )
+
+            assert report.all_passed is False
+            # Should have failed on config validation
+            config_results = [v for v in report.validations if "config" in v.message.lower()]
+            assert any(not v.passed for v in config_results)
+
+
+class TestPreflightReport:
+    """Tests for PreflightReport string formatting."""
+
+    def test_report_string_format(self):
+        """Test that the report string is properly formatted."""
+        report = PreflightReport(
+            config_name="test-config",
+            validations=[
+                ValidationResult(passed=True, message="Check 1 passed"),
+                ValidationResult(passed=False, message="Check 2 failed", details="Some error"),
+            ],
+            cost_estimate=CostEstimate(
+                num_tasks=10,
+                num_attempts_per_task=2,
+                total_attempts=20,
+                input_price_per_1m=1.0,
+                output_price_per_1m=2.0,
+                estimated_input_tokens=10000,
+                estimated_output_tokens=5000,
+                estimated_cost=0.02
+            ),
+            all_passed=False
+        )
+
+        report_str = str(report)
+        assert "test-config" in report_str
+        assert "✓" in report_str  # Passed check
+        assert "✗" in report_str  # Failed check
+        assert "FAILED" in report_str  # Overall status

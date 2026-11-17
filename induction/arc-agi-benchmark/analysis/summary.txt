@@ -1,0 +1,29 @@
+Tasks: 120   test pairs: 167   (scored on attempt 1 only = pass@1)
+Missing attempts (counted as wrong): original 0, disguised 0
+Max turns in any attempt: 1 (1 = no tool use)
+
+ACCURACY (task-level, 95% bootstrap interval)
+  Original    80.7%   [74.4, 86.7]
+  Disguised   83.6%   [77.6, 89.2]
+  Gap (orig - disguised): -2.9 pts   [-8.8, +2.9]
+
+PAIRED TABLE (test pairs)
+  Solved in both:            120
+  Only original solved:      11
+  Only disguised solved:     17
+  Neither:                   19
+  Exact McNemar p-value:     0.3449
+
+TOKENS PER ATTEMPT (mean)
+  Original   prompt     7879   output     4392   reasoning     2753
+  Disguised  prompt     8151   output     4522   reasoning     2895
+
+BY DISGUISE TYPE (task-level accuracy)
+  background 0 kept                n= 17   original  91.2%   disguised  91.2%   gap  +0.0
+  background 0 remapped            n=103   original  79.0%   disguised  82.4%   gap  -3.4
+  flip=mirror_horizontal           n= 35   original  88.1%   disguised  85.2%   gap  +2.9
+  flip=mirror_vertical             n= 36   original  65.3%   disguised  73.6%   gap  -8.3
+  flip=rotate_180                  n= 49   original  86.7%   disguised  89.8%   gap  -3.1
+  (small groups: descriptive only)
+
+Reminder: ARC Prize's 87.5% for Opus 5.5 medium is pass@2 on a held-out set; pass@1 here should be somewhat lower even without contamination.

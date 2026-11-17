@@ -1,0 +1,406 @@
+[
+    {
+        "attempt_1": {
+            "answer": [
+                [
+                    6,
+                    6,
+                    9,
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    9,
+                    6,
+                    6
+                ],
+                [
+                    6,
+                    6,
+                    6,
+                    6,
+                    6,
+                    6,
+                    6,
+                    6,
+                    6,
+                    6,
+                    6
+                ],
+                [
+                    7,
+                    6,
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    6,
+                    7
+                ],
+                [
+                    7,
+                    6,
+                    7,
+                    6,
+                    6,
+                    7,
+                    6,
+                    6,
+                    7,
+                    6,
+                    9
+                ],
+                [
+                    7,
+                    6,
+                    7,
+                    6,
+                    9,
+                    9,
+                    9,
+                    6,
+                    7,
+                    6,
+                    7
+                ],
+                [
+                    7,
+                    6,
+                    7,
+                    7,
+                    9,
+                    2,
+                    9,
+                    7,
+                    7,
+                    6,
+                    9
+                ],
+                [
+                    7,
+                    6,
+                    7,
+                    6,
+                    9,
+                    3,
+                    3,
+                    6,
+                    7,
+                    6,
+                    7
+                ],
+                [
+                    7,
+                    6,
+                    7,
+                    6,
+                    6,
+                    7,
+                    6,
+                    6,
+                    7,
+                    6,
+                    9
+                ],
+                [
+                    7,
+                    6,
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    6,
+                    7
+                ],
+                [
+                    7,
+                    6,
+                    6,
+                    6,
+                    6,
+                    6,
+                    6,
+                    6,
+                    7,
+                    6,
+                    6
+                ],
+                [
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    6,
+                    6
+                ]
+            ],
+            "metadata": {
+                "model": "claude-opus-5-5",
+                "provider": "claudecodecli",
+                "start_timestamp": "2026-11-16T05:16:56.926118+00:00",
+                "end_timestamp": "2026-11-16T05:18:54.391119+00:00",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "user",
+                            "content": "You are participating in a puzzle solving competition. You are an expert at solving puzzles.\n\nBelow is a list of input and output pairs with a pattern. Your goal is to identify the pattern or transformation in the training examples that maps the input to the output, then apply that pattern to the test input to give a final output.\n\nRespond in the format of the training output examples\n\n--Training Examples--\n--Example 0-- \n\n INPUT: \n\n[[7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 6, 6, 6, 6, 6, 6, 6, 9, 9, 7], [7, 6, 9, 9, 7, 7, 7, 6, 9, 9, 7], [7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7], [7, 7, 7, 6, 3, 3, 3, 6, 7, 7, 7], [7, 7, 7, 6, 3, 2, 3, 6, 7, 9, 7], [7, 9, 7, 6, 3, 3, 3, 6, 7, 7, 7], [9, 9, 7, 6, 6, 7, 6, 6, 6, 6, 7], [7, 7, 7, 6, 7, 7, 7, 9, 9, 6, 7], [7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]]\n\nOUTPUT: \n\n[[7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 6, 6, 6, 6, 6, 6, 6, 9, 9, 7], [7, 6, 9, 9, 7, 7, 7, 6, 9, 9, 7], [7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7], [7, 7, 7, 6, 9, 9, 3, 6, 7, 7, 7], [7, 7, 7, 6, 3, 2, 3, 6, 7, 9, 7], [7, 9, 7, 6, 3, 3, 3, 6, 7, 7, 7], [9, 9, 7, 6, 6, 7, 6, 6, 6, 6, 7], [7, 7, 7, 6, 7, 7, 7, 7, 7, 6, 7], [7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]]\n\n--Example 1-- \n\n INPUT: \n\n[[7, 7, 7, 7, 7, 7, 9, 9, 9, 7, 7], [7, 7, 7, 7, 7, 7, 9, 9, 7, 7, 9], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 9], [9, 7, 7, 6, 6, 6, 6, 6, 6, 6, 6], [7, 7, 7, 6, 3, 3, 3, 6, 9, 7, 7], [7, 7, 9, 6, 3, 2, 3, 6, 7, 7, 7], [7, 7, 7, 6, 3, 3, 3, 6, 7, 9, 7], [7, 7, 7, 6, 7, 7, 7, 6, 7, 7, 7], [7, 9, 7, 6, 7, 9, 7, 6, 7, 7, 7], [7, 7, 9, 6, 7, 9, 7, 6, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]]\n\nOUTPUT: \n\n[[7, 7, 7, 7, 7, 7, 9, 9, 9, 7, 7], [7, 7, 7, 7, 7, 7, 7, 9, 7, 7, 9], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 9], [7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 6], [7, 7, 7, 6, 9, 9, 9, 6, 7, 7, 7], [7, 7, 7, 6, 9, 9, 9, 6, 7, 7, 7], [7, 7, 7, 6, 9, 9, 9, 6, 7, 7, 7], [7, 7, 7, 6, 7, 7, 7, 6, 7, 7, 7], [7, 7, 7, 6, 7, 7, 7, 6, 7, 7, 7], [7, 7, 7, 6, 7, 7, 7, 6, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]]\n\n--Example 2-- \n\n INPUT: \n\n[[7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 9, 7], [7, 7, 9, 7, 7, 7, 7, 7, 7, 7, 9], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7], [7, 7, 7, 7, 3, 2, 3, 7, 7, 7, 7], [7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 9, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]]\n\nOUTPUT: \n\n[[7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 9, 9, 9, 7, 7, 7, 7], [7, 7, 7, 7, 9, 2, 3, 7, 7, 7, 7], [7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]]\n\n\n--End of Training Examples--\n\n--Test Input--\n[[6, 6, 9, 7, 7, 7, 7, 7, 9, 6, 6], [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6], [9, 6, 9, 7, 7, 7, 7, 7, 9, 6, 7], [7, 6, 7, 6, 6, 7, 6, 6, 7, 6, 9], [7, 6, 7, 6, 3, 3, 3, 6, 7, 6, 7], [7, 6, 7, 7, 3, 2, 3, 7, 7, 6, 9], [7, 6, 7, 6, 3, 3, 3, 6, 7, 6, 7], [7, 6, 7, 6, 6, 7, 6, 6, 7, 6, 9], [7, 6, 9, 7, 7, 9, 7, 7, 9, 6, 7], [7, 6, 6, 6, 6, 6, 6, 6, 7, 6, 6], [7, 7, 7, 7, 7, 7, 7, 7, 7, 6, 6]]\n--End of Test Input--\n\nYour response:"
+                        }
+                    },
+                    {
+                        "index": 1,
+                        "message": {
+                            "role": "assistant",
+                            "content": "I worked out the rule from the examples, but one detail (the fill order) is my best guess rather than something the examples settle.\n\n**Rule:**\n1. Start at the 2 in the middle of the 3\u00d73 block. Find every 9 you can reach from it by moving through cells that are not 6. The 6s act as walls.\n2. Remove each reachable 9 (turn it into 7). 9s sealed off behind walls stay where they are.\n3. Paint the same number of 9s into the 3\u00d73 block, in reading order (left to right, top to bottom).\n   - In Example 1 there were 9 reachable 9s, so the whole block, including the 2 in the centre, became 9.\n   - With fewer than 9, I skip the centre and fill the 3s around it first. The examples don't show this case, so it is an assumption.\n\n**Test input:**\n- Reachable 9s: (2,2), (2,8), (8,2), (8,5), (8,8), and (2,0). The cell (2,0) is reached by going out through the gap at (9,8), along the bottom row and up column 0.\n- Unreachable 9s: the ones in row 0 (sealed off by row 1) and in column 10 (sealed off by column 9). These stay.\n- That gives 6 nines to move. They go to (4,4), (4,5), (4,6), (5,4), (5,6) and (6,4).\n\n[[6, 6, 9, 7, 7, 7, 7, 7, 9, 6, 6], [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6], [7, 6, 7, 7, 7, 7, 7, 7, 7, 6, 7], [7, 6, 7, 6, 6, 7, 6, 6, 7, 6, 9], [7, 6, 7, 6, 9, 9, 9, 6, 7, 6, 7], [7, 6, 7, 7, 9, 2, 9, 7, 7, 6, 9], [7, 6, 7, 6, 9, 3, 3, 6, 7, 6, 7], [7, 6, 7, 6, 6, 7, 6, 6, 7, 6, 9], [7, 6, 7, 7, 7, 7, 7, 7, 7, 6, 7], [7, 6, 6, 6, 6, 6, 6, 6, 7, 6, 6], [7, 7, 7, 7, 7, 7, 7, 7, 7, 6, 6]]"
+                        }
+                    }
+                ],
+                "reasoning_summary": null,
+                "reasoning_content": null,
+                "kwargs": {
+                    "effort": "medium"
+                },
+                "usage": {
+                    "prompt_tokens": 3351,
+                    "completion_tokens": 3642,
+                    "total_tokens": 6993,
+                    "prompt_tokens_details": {
+                        "cache_creation_tokens": 3349,
+                        "cache_read_tokens": 0
+                    },
+                    "completion_tokens_details": {
+                        "reasoning_tokens": 2833,
+                        "accepted_prediction_tokens": 3642,
+                        "rejected_prediction_tokens": 0
+                    }
+                },
+                "cost": {
+                    "prompt_cost": 0.0,
+                    "completion_cost": 0.0,
+                    "reasoning_cost": null,
+                    "total_cost": 0.0
+                },
+                "task_id": "dd6b8c4b",
+                "pair_index": 0,
+                "test_id": "claude-opus-5-5-medium-claudecode",
+                "tool_calls": null,
+                "num_turns": 1
+            },
+            "correct": false
+        }
+    },
+    {
+        "attempt_1": {
+            "answer": [
+                [
+                    7,
+                    7,
+                    7,
+                    6,
+                    9,
+                    7,
+                    9,
+                    6,
+                    7,
+                    7,
+                    7
+                ],
+                [
+                    7,
+                    7,
+                    7,
+                    6,
+                    6,
+                    6,
+                    6,
+                    6,
+                    7,
+                    7,
+                    7
+                ],
+                [
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    7,
+                    7
+                ],
+                [
+                    6,
+                    6,
+                    7,
+                    6,
+                    6,
+                    7,
+                    6,
+                    6,
+                    6,
+                    6,
+                    7
+                ],
+                [
+                    7,
+                    7,
+                    7,
+                    6,
+                    9,
+                    9,
+                    9,
+                    6,
+                    7,
+                    7,
+                    7
+                ],
+                [
+                    7,
+                    6,
+                    6,
+                    6,
+                    9,
+                    9,
+                    9,
+                    6,
+                    7,
+                    6,
+                    6
+                ],
+                [
+                    7,
+                    7,
+                    7,
+                    6,
+                    9,
+                    9,
+                    9,
+                    6,
+                    7,
+                    7,
+                    7
+                ],
+                [
+                    6,
+                    6,
+                    7,
+                    6,
+                    6,
+                    6,
+                    7,
+                    6,
+                    6,
+                    6,
+                    7
+                ],
+                [
+                    7,
+                    7,
+                    7,
+                    6,
+                    7,
+                    7,
+                    7,
+                    6,
+                    7,
+                    7,
+                    7
+                ],
+                [
+                    7,
+                    6,
+                    6,
+                    6,
+                    7,
+                    6,
+                    6,
+                    6,
+                    7,
+                    6,
+                    6
+                ],
+                [
+                    7,
+                    9,
+                    9,
+                    6,
+                    7,
+                    7,
+                    7,
+                    6,
+                    9,
+                    9,
+                    9
+                ]
+            ],
+            "metadata": {
+                "model": "claude-opus-5-5",
+                "provider": "claudecodecli",
+                "start_timestamp": "2026-11-16T05:18:54.392535+00:00",
+                "end_timestamp": "2026-11-16T05:20:05.211129+00:00",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "user",
+                            "content": "You are participating in a puzzle solving competition. You are an expert at solving puzzles.\n\nBelow is a list of input and output pairs with a pattern. Your goal is to identify the pattern or transformation in the training examples that maps the input to the output, then apply that pattern to the test input to give a final output.\n\nRespond in the format of the training output examples\n\n--Training Examples--\n--Example 0-- \n\n INPUT: \n\n[[7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 6, 6, 6, 6, 6, 6, 6, 9, 9, 7], [7, 6, 9, 9, 7, 7, 7, 6, 9, 9, 7], [7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7], [7, 7, 7, 6, 3, 3, 3, 6, 7, 7, 7], [7, 7, 7, 6, 3, 2, 3, 6, 7, 9, 7], [7, 9, 7, 6, 3, 3, 3, 6, 7, 7, 7], [9, 9, 7, 6, 6, 7, 6, 6, 6, 6, 7], [7, 7, 7, 6, 7, 7, 7, 9, 9, 6, 7], [7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]]\n\nOUTPUT: \n\n[[7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 6, 6, 6, 6, 6, 6, 6, 9, 9, 7], [7, 6, 9, 9, 7, 7, 7, 6, 9, 9, 7], [7, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7], [7, 7, 7, 6, 9, 9, 3, 6, 7, 7, 7], [7, 7, 7, 6, 3, 2, 3, 6, 7, 9, 7], [7, 9, 7, 6, 3, 3, 3, 6, 7, 7, 7], [9, 9, 7, 6, 6, 7, 6, 6, 6, 6, 7], [7, 7, 7, 6, 7, 7, 7, 7, 7, 6, 7], [7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]]\n\n--Example 1-- \n\n INPUT: \n\n[[7, 7, 7, 7, 7, 7, 9, 9, 9, 7, 7], [7, 7, 7, 7, 7, 7, 9, 9, 7, 7, 9], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 9], [9, 7, 7, 6, 6, 6, 6, 6, 6, 6, 6], [7, 7, 7, 6, 3, 3, 3, 6, 9, 7, 7], [7, 7, 9, 6, 3, 2, 3, 6, 7, 7, 7], [7, 7, 7, 6, 3, 3, 3, 6, 7, 9, 7], [7, 7, 7, 6, 7, 7, 7, 6, 7, 7, 7], [7, 9, 7, 6, 7, 9, 7, 6, 7, 7, 7], [7, 7, 9, 6, 7, 9, 7, 6, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]]\n\nOUTPUT: \n\n[[7, 7, 7, 7, 7, 7, 9, 9, 9, 7, 7], [7, 7, 7, 7, 7, 7, 7, 9, 7, 7, 9], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 9], [7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 6], [7, 7, 7, 6, 9, 9, 9, 6, 7, 7, 7], [7, 7, 7, 6, 9, 9, 9, 6, 7, 7, 7], [7, 7, 7, 6, 9, 9, 9, 6, 7, 7, 7], [7, 7, 7, 6, 7, 7, 7, 6, 7, 7, 7], [7, 7, 7, 6, 7, 7, 7, 6, 7, 7, 7], [7, 7, 7, 6, 7, 7, 7, 6, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]]\n\n--Example 2-- \n\n INPUT: \n\n[[7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 9, 7], [7, 7, 9, 7, 7, 7, 7, 7, 7, 7, 9], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7], [7, 7, 7, 7, 3, 2, 3, 7, 7, 7, 7], [7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 9, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]]\n\nOUTPUT: \n\n[[7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 9, 9, 9, 7, 7, 7, 7], [7, 7, 7, 7, 9, 2, 3, 7, 7, 7, 7], [7, 7, 7, 7, 3, 3, 3, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]]\n\n\n--End of Training Examples--\n\n--Test Input--\n[[7, 7, 7, 6, 9, 7, 9, 6, 7, 7, 7], [7, 7, 9, 6, 6, 6, 6, 6, 7, 7, 9], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [6, 6, 9, 6, 6, 7, 6, 6, 6, 6, 9], [7, 7, 7, 6, 3, 3, 3, 6, 7, 7, 7], [7, 6, 6, 6, 3, 2, 3, 6, 7, 6, 6], [7, 7, 7, 6, 3, 3, 3, 6, 7, 7, 7], [6, 6, 9, 6, 6, 6, 7, 6, 6, 6, 9], [7, 7, 7, 6, 7, 7, 7, 6, 7, 7, 7], [7, 6, 6, 6, 7, 6, 6, 6, 7, 6, 6], [9, 9, 9, 6, 9, 7, 9, 6, 9, 9, 9]]\n--End of Test Input--\n\nYour response:"
+                        }
+                    },
+                    {
+                        "index": 1,
+                        "message": {
+                            "role": "assistant",
+                            "content": "**Pattern**\n\n1. The 6s are walls. Every cell that is not a 6, including 9 cells, can be passed through.\n2. Each 9 that can reach the 3\u00d73 block (the 3s around the centre 2) through non-6 cells moves into that block.\n3. The block holds at most 9 cells. The reachable 9s with the shortest path distance arrive first.\n4. Arriving 9s fill the block in reading order (left to right, top to bottom). If there are 9 of them, they cover the centre 2 as well.\n5. Each 9 that moved leaves a 7 behind. Unreachable 9s and any beyond the first nine stay where they are.\n\nThis matches all three examples:\n- **Example 0:** only the two 9s in the lower box can reach the block, so they fill the top-left two cells.\n- **Example 1:** fifteen 9s can reach it, so the nine nearest fill the whole block.\n- **Example 2:** four 9s can reach it, so they fill the first four cells.\n\n**Applying it to the test**\n\nThe block can be left by two gaps: (3,5) above it and (7,6) below it. The 9s at (0,4) and (0,6) are walled in, so they stay.\n\nThe nine nearest reachable 9s, by path distance, are:\n\n| 9 at | distance |\n|---|---|\n| (1,2) | 6 |\n| (3,2) | 6 |\n| (10,4) | 6 |\n| (1,10) | 8 |\n| (3,10) | 8 |\n| (10,6) | 8 |\n| (7,2) | 14 |\n| (7,10) | 16 |\n| (10,0) | 19 |\n\nThe next nearest is (10,1) at distance 20, so it stays, along with (10,2), (10,8), (10,9) and (10,10). The nine moved 9s fill the whole block.\n\n**Output**\n\n[[7, 7, 7, 6, 9, 7, 9, 6, 7, 7, 7], [7, 7, 7, 6, 6, 6, 6, 6, 7, 7, 7], [7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7], [6, 6, 7, 6, 6, 7, 6, 6, 6, 6, 7], [7, 7, 7, 6, 9, 9, 9, 6, 7, 7, 7], [7, 6, 6, 6, 9, 9, 9, 6, 7, 6, 6], [7, 7, 7, 6, 9, 9, 9, 6, 7, 7, 7], [6, 6, 7, 6, 6, 6, 7, 6, 6, 6, 7], [7, 7, 7, 6, 7, 7, 7, 6, 7, 7, 7], [7, 6, 6, 6, 7, 6, 6, 6, 7, 6, 6], [7, 9, 9, 6, 7, 7, 7, 6, 9, 9, 9]]"
+                        }
+                    }
+                ],
+                "reasoning_summary": null,
+                "reasoning_content": null,
+                "kwargs": {
+                    "effort": "medium"
+                },
+                "usage": {
+                    "prompt_tokens": 3351,
+                    "completion_tokens": 4937,
+                    "total_tokens": 8288,
+                    "prompt_tokens_details": {
+                        "cache_creation_tokens": 3349,
+                        "cache_read_tokens": 0
+                    },
+                    "completion_tokens_details": {
+                        "reasoning_tokens": 3970,
+                        "accepted_prediction_tokens": 4937,
+                        "rejected_prediction_tokens": 0
+                    }
+                },
+                "cost": {
+                    "prompt_cost": 0.0,
+                    "completion_cost": 0.0,
+                    "reasoning_cost": null,
+                    "total_cost": 0.0
+                },
+                "task_id": "dd6b8c4b",
+                "pair_index": 1,
+                "test_id": "claude-opus-5-5-medium-claudecode",
+                "tool_calls": null,
+                "num_turns": 1
+            },
+            "correct": true
+        }
+    }
+]

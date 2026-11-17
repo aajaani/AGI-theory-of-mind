@@ -1,0 +1,850 @@
+import asyncio
+import os
+import argparse
+import time
+from typing import List, Tuple, Dict, Any, Optional
+from pathlib import Path
+import json
+import contextvars
+
+import sys
+import logging
+
+from dotenv import load_dotenv
+load_dotenv()
+
+# Add project root to sys.path to allow importing main.py (which contains ARCTester)
+# Note: arc_agi_benchmarking package imports work via pip install -e .
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from main import ARCTester
+from arc_agi_benchmarking.utils.task_utils import read_models_config, read_provider_rate_limits, get_provider_timeout_config
+from arc_agi_benchmarking.utils.submission_exists import (
+    submission_exists,
+    submission_is_complete,
+)
+from arc_agi_benchmarking.utils.rate_limiter import RequestRateLimiter
+from arc_agi_benchmarking.utils.concurrency_limiter import ProviderConcurrencyLimiter
+from arc_agi_benchmarking.utils.metrics import set_metrics_enabled, set_metrics_filename_prefix
+from arc_agi_benchmarking.utils.preflight import run_preflight
+from arc_agi_benchmarking.utils.logging_utils import setup_logging, StructuredFormatter
+from arc_agi_benchmarking.utils.logging_utils import RawAPILogger
+from arc_agi_benchmarking.resilience import (
+    CircuitBreaker,
+    CircuitBreakerOpenError,
+    TaskTimeoutError,
+    task_timeout,
+    get_circuit_breaker,
+)
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, before_sleep_log
+
+logger = logging.getLogger(__name__)
+
+# Context for per-task logging
+LOG_CONFIG_CTX: contextvars.ContextVar[str | None] = contextvars.ContextVar("log_config", default=None)
+LOG_TASK_CTX: contextvars.ContextVar[str | None] = contextvars.ContextVar("log_task", default=None)
+
+# Extend log records with config/task context
+_ORIGINAL_RECORD_FACTORY = logging.getLogRecordFactory()
+
+def _record_factory(*args, **kwargs):
+    record = _ORIGINAL_RECORD_FACTORY(*args, **kwargs)
+    record.config_name = LOG_CONFIG_CTX.get()
+    record.task_id = LOG_TASK_CTX.get()
+    return record
+
+
+# Apply the record factory globally (once)
+logging.setLogRecordFactory(_record_factory)
+
+# Attempt to import provider-specific exceptions for retrying
+try:
+    from anthropic import RateLimitError as AnthropicRateLimitError
+except ImportError:
+    AnthropicRateLimitError = None
+    logger.warning("Anthropic SDK not installed or RateLimitError not found. Retries for Anthropic rate limits will not be specific.")
+
+try:
+    from openai import RateLimitError as OpenAIRateLimitError
+except ImportError:
+    OpenAIRateLimitError = None
+    logger.warning("OpenAI SDK not installed or RateLimitError not found. Retries for OpenAI rate limits will not be specific.")
+
+try:
+    from google.api_core.exceptions import ResourceExhausted as GoogleResourceExhausted
+except ImportError:
+    GoogleResourceExhausted = None
+    logger.warning("Google API Core SDK not installed or ResourceExhausted not found. Retries for Google rate limits will not be specific.")
+
+_RETRYABLE_EXCEPTIONS_CLASSES = tuple(
+    exc for exc in (AnthropicRateLimitError, OpenAIRateLimitError, GoogleResourceExhausted) if exc is not None
+)
+
+if not _RETRYABLE_EXCEPTIONS_CLASSES:
+    logger.warning(
+        "No specific retryable exception classes were successfully imported. "
+        "Retries might not trigger as expected or might catch too broadly if fallback to general Exception is used."
+    )
+    EFFECTIVE_RETRYABLE_EXCEPTIONS = (Exception,)
+else:
+    EFFECTIVE_RETRYABLE_EXCEPTIONS = _RETRYABLE_EXCEPTIONS_CLASSES
+
+# Default values
+DEFAULT_RATE_LIMIT_RATE = 400
+DEFAULT_RATE_LIMIT_PERIOD = 60
+DEFAULT_CIRCUIT_BREAKER_THRESHOLD = 5
+DEFAULT_CIRCUIT_BREAKER_RECOVERY = 60
+
+# --- Configuration ---
+# Default model configuration to test if not provided via CLI.
+# This is a name from your models.yml file.
+DEFAULT_MODEL_CONFIG = "gpt-4o-2024-11-20"
+
+DEFAULT_DATA_DIR = "data/sample/tasks"
+DEFAULT_SAVE_SUBMISSION_DIR = "submissions"
+DEFAULT_OVERWRITE_SUBMISSION = False
+DEFAULT_PRINT_SUBMISSION = False # ARCTester specific: whether it logs submission content
+DEFAULT_NUM_ATTEMPTS = 2
+DEFAULT_RETRY_ATTEMPTS = 2
+# DEFAULT_PRINT_LOGS = False # This is now controlled by the global log level
+
+# --- Globals for Orchestrator ---
+PROVIDER_RATE_LIMITERS: Dict[str, RequestRateLimiter] = {}
+PROVIDER_CONCURRENCY_LIMITERS: Dict[str, ProviderConcurrencyLimiter] = {}
+PROVIDER_CIRCUIT_BREAKERS: Dict[str, CircuitBreaker] = {}
+PROVIDER_TIMEOUT_CONFIGS: Dict[str, Dict] = {}
+MODEL_CONFIG_CACHE: Dict[str, Any] = {}
+
+
+def get_task_test_pair_count(data_dir: str, task_id: str) -> int:
+    task_path = os.path.join(data_dir, f"{task_id}.json")
+    with open(task_path, "r") as f:
+        task_data = json.load(f)
+    return len(task_data.get("test", []))
+
+
+def get_model_config(config_name: str):
+    if config_name not in MODEL_CONFIG_CACHE:
+        MODEL_CONFIG_CACHE[config_name] = read_models_config(config_name)
+    return MODEL_CONFIG_CACHE[config_name]
+
+
+def get_or_create_concurrency_limiter(
+    provider_name: str,
+    max_concurrency: Optional[int],
+) -> Optional[ProviderConcurrencyLimiter]:
+    """Return the provider's CLI-configured cross-process concurrency limiter."""
+    if max_concurrency is None:
+        return None
+    if isinstance(max_concurrency, bool) or not isinstance(max_concurrency, int):
+        raise ValueError(
+            f"max_concurrency for provider '{provider_name}' must be an integer"
+        )
+    if max_concurrency < 1:
+        raise ValueError(
+            f"max_concurrency for provider '{provider_name}' must be at least 1"
+        )
+
+    limiter = PROVIDER_CONCURRENCY_LIMITERS.get(provider_name)
+    if limiter is None:
+        limiter = ProviderConcurrencyLimiter(provider_name, max_concurrency)
+        PROVIDER_CONCURRENCY_LIMITERS[provider_name] = limiter
+        logger.info(
+            f"Initializing GLOBAL concurrency limiter for '{provider_name}' "
+            f"with max_concurrency={max_concurrency}."
+        )
+    elif limiter.max_concurrency != max_concurrency:
+        raise ValueError(
+            f"Conflicting max_concurrency values for provider '{provider_name}': "
+            f"{limiter.max_concurrency} and {max_concurrency}"
+        )
+    return limiter
+
+def get_or_create_rate_limiter(
+    provider_name: str,
+    all_provider_limits: Dict,
+    model_config: Optional[Any] = None,
+    rate_limit_divisor: int = 1,
+) -> RequestRateLimiter:
+    """
+    Get or create a rate limiter, checking for model-level config first.
+    
+    Priority:
+    1. Model-specific rate_limit in models.yml (uses config name as key)
+    2. Provider-level rate limit in provider_config.yml
+    3. Default rate limit
+
+    The effective configured rate is divided by ``rate_limit_divisor``. This
+    lets the multi-config launcher share a provider's request budget across
+    independent worker processes without changing the configured period.
+    """
+    if rate_limit_divisor < 1:
+        raise ValueError("rate_limit_divisor must be at least 1")
+
+    # Check for model-level rate limit first
+    limiter_key = provider_name
+    model_rate_limit = None
+    
+    if model_config is not None:
+        model_rate_limit = model_config.kwargs.get('rate_limit')
+        if model_rate_limit:
+            # Use config name as the limiter key for model-specific limits
+            limiter_key = model_config.name
+    
+    if limiter_key not in PROVIDER_RATE_LIMITERS:
+        if model_rate_limit:
+            # Use model-specific rate limit
+            original_config_rate = model_rate_limit.get('rate', DEFAULT_RATE_LIMIT_RATE)
+            config_rate = original_config_rate / rate_limit_divisor
+            config_period = model_rate_limit.get('period', DEFAULT_RATE_LIMIT_PERIOD)
+            if config_period <= 0:
+                actual_rate_for_limiter = float('inf')
+                actual_capacity_for_limiter = float('inf')
+                logger.warning(f"Model '{model_config.name}' has period <= 0 in config. Treating as unconstrained.")
+            else:
+                calculated_rps = config_rate / config_period
+                actual_rate_for_limiter = calculated_rps
+                config_capacity = model_rate_limit.get('capacity')
+                actual_capacity_for_limiter = (
+                    max(1.0, config_capacity / rate_limit_divisor)
+                    if config_capacity is not None
+                    else max(1.0, calculated_rps)
+                )
+            logger.info(
+                f"Initializing MODEL-SPECIFIC rate limiter for '{model_config.name}': "
+                f"configured={original_config_rate:g} req/{config_period:g}s, "
+                f"divisor={rate_limit_divisor}, adjusted={config_rate:g} req/{config_period:g}s "
+                f"({actual_rate_for_limiter:.2f} req/s), capacity={actual_capacity_for_limiter:.2f}."
+            )
+        elif provider_name not in all_provider_limits:
+            logger.warning(f"No rate limit configuration found for provider '{provider_name}' in provider_config.yml. Using default ({DEFAULT_RATE_LIMIT_RATE} req/{DEFAULT_RATE_LIMIT_PERIOD}s).")
+            original_config_rate = DEFAULT_RATE_LIMIT_RATE
+            default_config_rate = original_config_rate / rate_limit_divisor
+            default_config_period = DEFAULT_RATE_LIMIT_PERIOD
+            actual_rate_for_limiter = default_config_rate / default_config_period
+            actual_capacity_for_limiter = max(1.0, actual_rate_for_limiter)
+            logger.info(
+                f"Initializing default rate limiter for '{provider_name}': "
+                f"configured={original_config_rate:g} req/{default_config_period:g}s, "
+                f"divisor={rate_limit_divisor}, adjusted={default_config_rate:g} req/{default_config_period:g}s "
+                f"({actual_rate_for_limiter:.2f} req/s), capacity={actual_capacity_for_limiter:.2f}."
+            )
+        else:
+            limits = all_provider_limits[provider_name]
+            original_config_rate = limits['rate']
+            config_rate = original_config_rate / rate_limit_divisor
+            config_period = limits['period']
+            if config_period <= 0:
+                actual_rate_for_limiter = float('inf')
+                actual_capacity_for_limiter = float('inf')
+                logger.warning(f"Provider '{provider_name}' has period <= 0 in config. Treating as unconstrained.")
+            else:
+                calculated_rps = config_rate / config_period
+                actual_rate_for_limiter = calculated_rps
+                config_capacity = limits.get('capacity')
+                actual_capacity_for_limiter = (
+                    max(1.0, config_capacity / rate_limit_divisor)
+                    if config_capacity is not None
+                    else max(1.0, calculated_rps)
+                )
+            logger.info(
+                f"Initializing rate limiter for provider '{provider_name}': "
+                f"configured={original_config_rate:g} req/{config_period:g}s, "
+                f"divisor={rate_limit_divisor}, adjusted={config_rate:g} req/{config_period:g}s "
+                f"({actual_rate_for_limiter:.2f} req/s), capacity={actual_capacity_for_limiter:.2f}."
+            )
+        PROVIDER_RATE_LIMITERS[limiter_key] = RequestRateLimiter(rate=actual_rate_for_limiter, capacity=actual_capacity_for_limiter)
+    return PROVIDER_RATE_LIMITERS[limiter_key]
+
+
+def get_or_create_circuit_breaker(
+    provider_name: str,
+    all_provider_limits: Dict,
+    threshold_override: Optional[int] = None
+) -> CircuitBreaker:
+    if provider_name not in PROVIDER_CIRCUIT_BREAKERS:
+        timeout_config = get_provider_timeout_config(provider_name, all_provider_limits)
+        failure_threshold = threshold_override or timeout_config['circuit_breaker_threshold']
+        recovery_timeout = timeout_config['circuit_breaker_recovery']
+        logger.info(f"Initializing circuit breaker for '{provider_name}': threshold={failure_threshold}, recovery={recovery_timeout}s")
+        PROVIDER_CIRCUIT_BREAKERS[provider_name] = CircuitBreaker(
+            name=provider_name,
+            failure_threshold=failure_threshold,
+            recovery_timeout=recovery_timeout,
+        )
+    return PROVIDER_CIRCUIT_BREAKERS[provider_name]
+
+
+def get_task_timeout(provider_name: str, all_provider_limits: Dict, max_task_timeout: Optional[float] = None) -> Optional[float]:
+    if max_task_timeout is not None and max_task_timeout > 0:
+        return max_task_timeout
+    return None
+
+async def run_single_test_wrapper(config_name: str, task_id: str, limiter: RequestRateLimiter,
+                                  circuit_breaker: CircuitBreaker,
+                                  task_timeout_seconds: Optional[float],
+                                  data_dir: str, save_submission_dir: str,
+                                  overwrite_submission: bool, print_submission: bool,
+                                  num_attempts: int, retry_attempts: int,
+                                  logs_base_dir: Path,
+                                  concurrency_limiter: Optional[ProviderConcurrencyLimiter] = None,
+                                  raw_api_logger: Optional[RawAPILogger] = None) -> bool:
+    logger.info(f"[Orchestrator] Queuing task: {task_id}, config: {config_name}")
+
+    try:
+        circuit_breaker.raise_if_open()
+    except CircuitBreakerOpenError as e:
+        logger.warning(f"[Orchestrator] Circuit breaker OPEN for {config_name}, skipping {task_id}. Recovery in {e.recovery_time:.1f}s")
+        return False
+
+    orchestrator_attempt = 0
+
+    @retry(
+        wait=wait_exponential(multiplier=1, min=4, max=60),
+        stop=stop_after_attempt(4),
+        retry=retry_if_exception_type(EFFECTIVE_RETRYABLE_EXCEPTIONS),
+        before_sleep=before_sleep_log(logger, logging.WARNING)
+    )
+    def _synchronous_task_execution_attempt_with_tenacity():
+        nonlocal orchestrator_attempt
+        orchestrator_attempt += 1
+        logger.debug(f"[Thread-{task_id}-{config_name}] Spawning ARCTester (Executing attempt)...")
+
+        # Configure per-task JSONL file logging: <logs_base_dir>/<config>/<task_id>/openai.jsonl
+        log_dir = logs_base_dir
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / f"{task_id}.jsonl"
+
+        # Ensure only records for this task/config reach this file handler
+        class _TaskFilter(logging.Filter):
+            def filter(self, record: logging.LogRecord) -> bool:
+                raw_context = getattr(record, "raw_api_event", {}).get(
+                    "context",
+                    {},
+                )
+                record_config = getattr(record, "config_name", None) or raw_context.get(
+                    "config"
+                )
+                record_task = getattr(record, "task_id", None) or raw_context.get(
+                    "task_id"
+                )
+                return record_config == config_name and record_task == task_id
+
+        # Set context vars so every log record (including library logs) carries config/task ids
+        config_token = LOG_CONFIG_CTX.set(config_name)
+        task_token = LOG_TASK_CTX.set(task_id)
+
+        file_handler = logging.FileHandler(log_path, encoding="utf-8")
+        file_handler.setFormatter(StructuredFormatter())
+        file_handler.addFilter(_TaskFilter())
+        logging.getLogger().addHandler(file_handler)
+        logging.getLogger("openai").setLevel(logging.INFO)
+        logger.info(f"[Thread-{task_id}-{config_name}] OpenAI SDK logs will be written to {log_path}")
+
+        arc_solver = ARCTester(
+            config=config_name,
+            save_submission_dir=save_submission_dir,
+            overwrite_submission=overwrite_submission,
+            print_submission=print_submission, # This ARCTester arg controls if it logs submission content
+            num_attempts=num_attempts,
+            retry_attempts=retry_attempts, # ARCTester's internal retries
+            request_limiter=limiter,
+            raw_api_logger=raw_api_logger,
+            orchestrator_attempt=orchestrator_attempt,
+            # print_logs removed from ARCTester instantiation
+        )
+        logger.debug(f"[Thread-{task_id}-{config_name}] Starting generate_task_solution...")
+        try:
+            task_attempts = arc_solver.generate_task_solution(
+                data_dir=data_dir,
+                task_id=task_id
+            )
+            if task_attempts is None and not submission_exists(
+                save_submission_dir, task_id
+            ):
+                raise RuntimeError(
+                    f"Task {task_id} completed without producing a submission"
+                )
+            logger.debug(f"[Thread-{task_id}-{config_name}] Task attempt completed successfully.")
+        finally:
+            LOG_CONFIG_CTX.reset(config_token)
+            LOG_TASK_CTX.reset(task_token)
+            logging.getLogger().removeHandler(file_handler)
+            file_handler.close()
+
+    async def _execute_task() -> None:
+        timeout_str = f"{task_timeout_seconds}s" if task_timeout_seconds else "none"
+        logger.info(
+            f"[Orchestrator] Executing {task_id} for {config_name} "
+            f"(timeout={timeout_str})"
+        )
+        if task_timeout_seconds:
+            await task_timeout(
+                _synchronous_task_execution_attempt_with_tenacity,
+                task_timeout_seconds,
+                f"Task {task_id} ({config_name})"
+            )
+        else:
+            await asyncio.get_event_loop().run_in_executor(
+                None, _synchronous_task_execution_attempt_with_tenacity
+            )
+
+    try:
+        if concurrency_limiter is None:
+            await _execute_task()
+        else:
+            logger.info(
+                f"[Orchestrator] Waiting for global provider concurrency "
+                f"slot for {config_name} / {task_id}"
+            )
+            async with concurrency_limiter.slot():
+                logger.info(
+                    f"[Orchestrator] Global provider concurrency slot acquired "
+                    f"for {config_name} / {task_id}"
+                )
+                await _execute_task()
+
+        circuit_breaker.record_success()
+        logger.info(f"[Orchestrator] Successfully processed: {config_name} / {task_id}")
+        return True
+
+    except TaskTimeoutError as e:
+        circuit_breaker.record_failure(e)
+        if raw_api_logger is not None:
+            raw_api_logger.record_task_timeout(
+                task_id=task_id,
+                config=config_name,
+                elapsed=e.elapsed,
+                timeout=e.timeout,
+            )
+        logger.error(f"[Orchestrator] Task {task_id} ({config_name}) timed out after {e.elapsed:.2f}s (limit: {e.timeout}s)")
+        return False
+
+    except Exception as e:
+        if isinstance(e, EFFECTIVE_RETRYABLE_EXCEPTIONS):
+            circuit_breaker.record_failure(e)
+            logger.error(f"[Orchestrator] Failed after retries: {config_name} / {task_id}. {type(e).__name__}: {e}", exc_info=True)
+        else:
+            logger.error(f"[Orchestrator] Failed (non-retryable): {config_name} / {task_id}. {type(e).__name__}: {e}", exc_info=True)
+        return False
+
+async def main(task_list_file: Optional[str],
+               config_to_test: str,
+               data_dir: str, save_submission_dir: str,
+               overwrite_submission: bool, print_submission: bool,
+               num_attempts: int, retry_attempts: int,
+               logs_base_dir: Path,
+               max_task_timeout: Optional[float] = None,
+               circuit_breaker_threshold: Optional[int] = None,
+               resume: bool = True,
+               rate_limit_divisor: int = 1,
+               max_tasks_per_run: Optional[int] = None,
+               max_concurrency: Optional[int] = None) -> int:
+    start_time = time.perf_counter()
+    raw_api_logger = RawAPILogger()
+    logger.info("Starting ARC Test Orchestrator...")
+    logger.info(f"Testing with model configuration: {config_to_test}")
+    logger.info(
+        "Raw API events will be appended to per-task application logs in %s "
+        "(run_id=%s)",
+        logs_base_dir,
+        raw_api_logger.run_id,
+    )
+    if max_task_timeout:
+        logger.info(f"Task timeout: {max_task_timeout}s (CLI override)")
+    if circuit_breaker_threshold:
+        logger.info(f"Circuit breaker threshold: {circuit_breaker_threshold} (CLI override)")
+
+    task_ids: List[str] = []
+    try:
+        if task_list_file:
+            logger.info(f"Using task list file: {task_list_file}")
+            with open(task_list_file, 'r') as f:
+                task_ids = [line.strip() for line in f if line.strip()]
+            if not task_ids:
+                logger.error(f"No task IDs found in {task_list_file}. Exiting.")
+                return 1 # Return an error code
+            unique_task_ids = list(dict.fromkeys(task_ids))
+            duplicate_count = len(task_ids) - len(unique_task_ids)
+            if duplicate_count:
+                logger.warning(
+                    f"Ignored {duplicate_count} duplicate task ID(s) from "
+                    f"{task_list_file}"
+                )
+            task_ids = unique_task_ids
+            logger.info(f"Loaded {len(task_ids)} task IDs from {task_list_file}.")
+        else:
+            logger.info(f"No task list file provided. Inferring task list from data directory: {data_dir}")
+            task_ids = sorted(
+                os.path.splitext(fname)[0] 
+                for fname in os.listdir(data_dir) 
+                if os.path.isfile(os.path.join(data_dir, fname)) and fname.endswith('.json')
+            )
+            if not task_ids:
+                logger.error(f"No task files (.json) found in {data_dir}. Exiting.")
+                return 1 # Return an error code
+            logger.info(f"Found {len(task_ids)} task IDs in {data_dir}.")
+
+    except FileNotFoundError:
+        if task_list_file:
+            logger.error(f"Task list file not found: {task_list_file}. Exiting.")
+        else: # Should not happen if data_dir is validated by argparse, but as a safeguard
+            logger.error(f"Data directory not found: {data_dir}. Exiting.")
+        return 1 # Return an error code
+    except Exception as e:
+        logger.error(f"Error loading tasks: {e}", exc_info=True)
+        return 1 # Return an error code
+
+    # Determine which tasks to run
+    if resume:
+        tasks_to_run = [
+            task_id
+            for task_id in task_ids
+            if not submission_exists(save_submission_dir, task_id)
+            or not submission_is_complete(
+                save_submission_dir,
+                task_id,
+                get_task_test_pair_count(data_dir, task_id),
+                num_attempts,
+            )
+        ]
+        skipped_existing_submissions = len(task_ids) - len(tasks_to_run)
+        if skipped_existing_submissions > 0:
+            logger.info(
+                f"Resuming from existing submissions: "
+                f"{skipped_existing_submissions} completed, "
+                f"{len(tasks_to_run)} remaining"
+            )
+    else:
+        tasks_to_run = task_ids
+        logger.info("Resume disabled - running all tasks")
+
+    if max_tasks_per_run is not None and len(tasks_to_run) > max_tasks_per_run:
+        available_task_count = len(tasks_to_run)
+        tasks_to_run = tasks_to_run[:max_tasks_per_run]
+        logger.info(
+            f"Limiting this run to {max_tasks_per_run} of "
+            f"{available_task_count} available task(s)"
+        )
+
+    all_jobs_to_run: List[Tuple[str, str]] = []
+    for task_id in tasks_to_run:
+        all_jobs_to_run.append((config_to_test, task_id))
+
+    if not all_jobs_to_run:
+        if resume:
+            logger.info("All tasks already completed. Use --no-resume to re-run.")
+            return 0
+        logger.warning("No jobs to run (check config_to_test and task list). Exiting.")
+        return 1
+
+    logger.info(f"Total jobs to process: {len(all_jobs_to_run)}")
+
+    try:
+        all_provider_limits = read_provider_rate_limits()
+        logger.info(f"Loaded rate limits from provider_config.yml for providers: {list(all_provider_limits.keys())}")
+    except FileNotFoundError:
+        logger.warning("provider_config.yml not found. Using default rate limits (400 req/60s per provider).")
+        all_provider_limits = {}
+    except Exception as e:
+        logger.warning(f"Error reading or parsing provider_config.yml: {e}. Using default rate limits.")
+        all_provider_limits = {}
+
+    async_tasks_to_execute = []
+    for config_name, task_id in all_jobs_to_run:
+        try:
+            model_config_obj = get_model_config(config_name)
+            provider_name = model_config_obj.provider
+            limiter = get_or_create_rate_limiter(
+                provider_name,
+                all_provider_limits,
+                model_config_obj,
+                rate_limit_divisor,
+            )
+            concurrency_limiter = get_or_create_concurrency_limiter(
+                provider_name,
+                max_concurrency,
+            )
+            circuit_breaker = get_or_create_circuit_breaker(provider_name, all_provider_limits, circuit_breaker_threshold)
+            task_timeout_val = get_task_timeout(provider_name, all_provider_limits, max_task_timeout)
+            async_tasks_to_execute.append(run_single_test_wrapper(
+                config_name, task_id, limiter,
+                circuit_breaker, task_timeout_val,
+                data_dir, save_submission_dir,
+                overwrite_submission, print_submission,
+                num_attempts, retry_attempts,
+                logs_base_dir,
+                concurrency_limiter,
+                raw_api_logger,
+            ))
+        except ValueError as e: # Specific error for model config issues
+            logger.error(f"Skipping config '{config_name}' for task '{task_id}' due to model config error: {e}")
+        except Exception as e: # General error for other setup issues
+            logger.error(f"Unexpected error setting up task for '{config_name}', '{task_id}': {e}", exc_info=True)
+
+    if not async_tasks_to_execute:
+        logger.warning("No tasks could be prepared for execution. Exiting.")
+        return 1 # Return an error code
+
+    logger.info(f"Executing {len(async_tasks_to_execute)} tasks concurrently...")
+    results = await asyncio.gather(*async_tasks_to_execute, return_exceptions=True)
+
+    successful_runs = sum(1 for r in results if r is True)
+    orchestrator_level_failures = sum(1 for r in results if r is False or isinstance(r, Exception))
+
+    logger.info("--- Orchestrator Summary ---")
+    exit_code = 0 # Default to success
+    if orchestrator_level_failures == 0:
+        logger.info(f"✨ All {successful_runs} test configurations completed successfully by the orchestrator.")
+    else:
+        logger.error(f"💥 {orchestrator_level_failures} out of {len(results)} test configurations failed or encountered errors during orchestration.")
+        for i, res in enumerate(results):
+            original_job_config, original_job_task_id = all_jobs_to_run[i] # Get original job details
+            if isinstance(res, Exception):
+                logger.error(f"  - Error for {original_job_config}/{original_job_task_id}: {type(res).__name__} - {str(res)}", exc_info=True)
+            elif res is False: # Wrapper reported failure
+                logger.warning(f"  - Failure reported by wrapper for {original_job_config}/{original_job_task_id} (check ARCTester logs for this task/config)")
+        exit_code = 1 # Indicate failure
+
+    # Log circuit breaker statistics
+    if PROVIDER_CIRCUIT_BREAKERS:
+        logger.info("--- Circuit Breaker Summary ---")
+        for provider, cb in PROVIDER_CIRCUIT_BREAKERS.items():
+            stats = cb.get_stats()
+            logger.info(
+                f"  {provider}: state={stats['state']}, "
+                f"requests={stats['total_requests']}, "
+                f"failures={stats['failed_requests']}, "
+                f"rejected={stats['rejected_requests']}"
+            )
+
+    logger.info("Note: Individual task success/failure is logged by ARCTester within its own logger (main.py's logger).")
+    logger.info("Orchestrator failure indicates an issue with running the ARCTester task itself or an unhandled exception in the wrapper.")
+
+    end_time = time.perf_counter()
+    total_duration = end_time - start_time
+    logger.info("--- Orchestrator Timing ---")
+    logger.info(f"Total execution time for cli/run_all.py: {total_duration:.2f} seconds")
+    
+    return exit_code
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run ARC tasks concurrently. Tasks can be specified via a task list file or inferred from a data directory.")
+    parser.add_argument(
+        "--task_list_file", 
+        type=str, 
+        default=None, # Default to None, indicating it's optional
+        required=False,
+        help="Optional path to a .txt file containing task IDs, one per line. If not provided, tasks are inferred from all .json files in --data_dir."
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=DEFAULT_MODEL_CONFIG,
+        help=f"Model configuration name to test (from models.yml). Defaults to: {DEFAULT_MODEL_CONFIG}"
+    )
+    parser.add_argument(
+        "--data_dir",
+        type=str,
+        default=DEFAULT_DATA_DIR,
+        help=f"Data set directory to run. If --task_list_file is not used, .json task files are inferred from here. Defaults to {DEFAULT_DATA_DIR}"
+    )
+    parser.add_argument(
+        "--save_submission_dir", "--submissions-root",
+        dest="save_submission_dir",
+        type=str,
+        default=DEFAULT_SAVE_SUBMISSION_DIR,
+        help=f"Folder to save submissions under (alias: --submissions-root for backward compatibility). Defaults to {DEFAULT_SAVE_SUBMISSION_DIR}"
+    )
+    parser.add_argument(
+        "--overwrite_submission",
+        action="store_true", # Defaults to False if not present
+        help=f"Overwrite submissions if they already exist. Defaults to {DEFAULT_OVERWRITE_SUBMISSION}"
+    )
+    parser.add_argument(
+        "--print_submission", # This flag is for ARCTester to log submission content
+        action="store_true", # Defaults to False if not present
+        help=f"Enable ARCTester to log final submission content (at INFO level). Defaults to {DEFAULT_PRINT_SUBMISSION}"
+    )
+    parser.add_argument(
+        "--num_attempts",
+        type=int,
+        default=DEFAULT_NUM_ATTEMPTS,
+        help=f"Number of attempts for each prediction by ARCTester. Defaults to {DEFAULT_NUM_ATTEMPTS}"
+    )
+    parser.add_argument(
+        "--retry_attempts",
+        type=int,
+        default=DEFAULT_RETRY_ATTEMPTS,
+        help=f"Number of internal retry attempts by ARCTester for failed predictions. Defaults to {DEFAULT_RETRY_ATTEMPTS}"
+    )
+    parser.add_argument(
+        "--enable-metrics",
+        action="store_true", # Defaults to False if not present
+        help="Enable metrics collection and dumping (disabled by default)."
+    )
+    parser.add_argument(
+        "--logs-base-dir",
+        type=str,
+        default="logs",
+        help=(
+            "Base directory for combined application and raw API JSONL logs. "
+            "Per-task logs go to <base>/<task_id>.jsonl (default: logs)."
+        ),
+    )
+    parser.add_argument(
+        "--skip-preflight",
+        action="store_true",
+        help="Skip preflight validation checks (not recommended for production runs)."
+    )
+    parser.add_argument(
+        "--cost-limit",
+        type=float,
+        default=None,
+        help="Maximum estimated cost in USD. Abort if estimated cost exceeds this limit."
+    )
+    parser.add_argument(
+        "--max-task-timeout",
+        type=float,
+        default=None,
+        help="Maximum timeout in seconds for each task execution. Overrides provider-specific timeouts."
+    )
+    parser.add_argument(
+        "--circuit-breaker-threshold",
+        type=int,
+        default=None,
+        help="Number of failures before circuit breaker opens. Overrides provider-specific thresholds."
+    )
+    parser.add_argument(
+        "--no-resume",
+        action="store_true",
+        help=(
+            "Disable submission-based resume filtering. Use with "
+            "--overwrite_submission to regenerate existing submissions."
+        )
+    )
+    parser.add_argument(
+        "--rate-limit-divisor",
+        type=int,
+        default=1,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--max-tasks-per-run", "--max_tasks_per_run",
+        dest="max_tasks_per_run",
+        type=int,
+        default=None,
+        help=(
+            "Maximum number of unsubmitted tasks to schedule in this invocation. "
+            "Applied independently to each config/dataset run."
+        ),
+    )
+    parser.add_argument(
+        "--max-concurrency",
+        type=int,
+        default=None,
+        help=(
+            "Maximum in-flight ARC tasks per provider across all cooperating "
+            "run_all processes."
+        ),
+    )
+
+    args = parser.parse_args()
+
+    if args.rate_limit_divisor < 1:
+        parser.error("--rate-limit-divisor must be at least 1")
+    if args.max_tasks_per_run is not None and args.max_tasks_per_run < 1:
+        parser.error("--max-tasks-per-run must be at least 1")
+    if args.max_concurrency is not None and args.max_concurrency < 1:
+        parser.error("--max-concurrency must be at least 1")
+
+    resume_enabled = not args.no_resume
+
+    # Set metrics enabled status based on CLI arg
+    set_metrics_enabled(args.enable_metrics)
+
+    # Configure structured logging for the entire application
+    setup_logging(level="INFO", quiet_libraries=True)
+
+    config_name = args.config.strip() if args.config else DEFAULT_MODEL_CONFIG
+    if not config_name:
+        config_name = DEFAULT_MODEL_CONFIG
+        logger.info(f"No config provided or empty, using default: {config_name}")
+    if "," in config_name:
+        logger.error("run_all supports one model config per invocation. Please invoke cli/run_all.py separately for each config.")
+        sys.exit(1)
+
+    # --- Set metrics filename prefix based on the model config being run --- 
+    if args.enable_metrics:
+        provider_name = "unknown_provider"
+        try:
+            first_config_obj = get_model_config(config_name)
+            provider_name = first_config_obj.provider
+        except Exception: 
+            logger.warning(f"Could not determine provider for metrics filename from config: {config_name or 'N/A'}")
+        
+        prefix = f"{provider_name}_{config_name}"
+        set_metrics_filename_prefix(prefix)
+        logger.info(f"Metrics enabled. Filename prefix set to: {prefix}")
+    # ----------------------------------------------------------------------------
+
+    # Resolve logs base dir; if relative, anchor to project root for consistency
+    logs_base_dir = Path(args.logs_base_dir)
+    if not logs_base_dir.is_absolute():
+        project_root = Path(__file__).resolve().parent.parent
+        logs_base_dir = (project_root / logs_base_dir).resolve()
+
+    # --- Preflight validation ---
+    if not args.skip_preflight:
+        logger.info("Running preflight validation...")
+        preflight_report = run_preflight(
+            config_name=config_name,
+            data_dir=args.data_dir,
+            output_dir=args.save_submission_dir,
+            num_attempts=args.num_attempts,
+            max_tasks_per_run=args.max_tasks_per_run,
+        )
+        print(preflight_report)
+
+        if not preflight_report.all_passed:
+            logger.error("Preflight validation failed. Use --skip-preflight to bypass (not recommended).")
+            sys.exit(1)
+
+        # Check cost limit if specified
+        if args.cost_limit is not None and preflight_report.cost_estimate:
+            if preflight_report.cost_estimate.estimated_cost > args.cost_limit:
+                logger.error(
+                    f"Estimated cost (${preflight_report.cost_estimate.estimated_cost:.2f}) "
+                    f"exceeds limit (${args.cost_limit:.2f}). Aborting."
+                )
+                sys.exit(1)
+            logger.info(
+                f"Cost check passed: ${preflight_report.cost_estimate.estimated_cost:.2f} "
+                f"<= ${args.cost_limit:.2f} limit"
+            )
+    else:
+        logger.warning("Preflight validation skipped (--skip-preflight flag set)")
+    # --- End preflight validation ---
+
+    # Ensure `main` returns an exit code which is then used by sys.exit
+    exit_code_from_main = asyncio.run(main(
+        task_list_file=args.task_list_file,
+        config_to_test=config_name,
+        data_dir=args.data_dir,
+        save_submission_dir=args.save_submission_dir,
+        overwrite_submission=args.overwrite_submission,
+        print_submission=args.print_submission,
+        num_attempts=args.num_attempts,
+        retry_attempts=args.retry_attempts,
+        logs_base_dir=logs_base_dir,
+        max_task_timeout=args.max_task_timeout,
+        circuit_breaker_threshold=args.circuit_breaker_threshold,
+        resume=resume_enabled,
+        rate_limit_divisor=args.rate_limit_divisor,
+        max_tasks_per_run=args.max_tasks_per_run,
+        max_concurrency=args.max_concurrency,
+    ))
+    
+    sys.exit(exit_code_from_main) 
