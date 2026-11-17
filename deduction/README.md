@@ -30,7 +30,9 @@ For memorization checks, I probed whether Claude could reproduce LogiQA 2.0 test
 | Options | Plain | 100 | 0.378 | 23 | 27 |
 | Options | Guided | 100 | 0.497 | 48 | 41 |
 
-The model has clearly seen at least some of the data. Looking at the result in *probes_results.jsonl*, we see that Claude manages to perfectly or near perfectly reconstract many passages, options. Looking at the models output, where we see reasoning, it says things like "Reconstructed from the original five-option LSAT question; I can't verify which option LogiQA 2.0 dropped or its exact wording." It seems like the model has seen questions in LogiQA 2.0 from other contexts. Lets try another test. 
+The model has clearly seen at least some of the data. Naming the benchmark made a large, statistically significant difference. Close matches (ROUGE-L > 0.5) rose from 11 to 42 of 100 in the completion probe (Fisher's exact test, p < 0.000001) and from 23 to 48 of 100 in the option-recall probe (p = 0.0004). This guided-versus-plain gap is the contamination signal used by Golchin and Surdeanu (2024).
+
+Looking at the result in *probes_results.jsonl*, we see that Claude manages to perfectly or near perfectly reconstract many passages, options. Looking at the models output, where we see reasoning, it says things like "Reconstructed from the original five-option LSAT question; I can't verify which option LogiQA 2.0 dropped or its exact wording." It seems like the model has seen questions in LogiQA 2.0 from other contexts. Lets try another test. 
 
 **Passage removed (100 questions)**
 
@@ -76,7 +78,7 @@ Accuracy on the combined variant (90%) was close to the baseline, so Claude is r
 | **Overall** | **65.0%** |
 | **Macro average** | **61.0%** |
 
- We did some heavy modification; they force the model to reason about each option and rule them out one by one, although being familiar with the dataset could mean that the model could recognize the correct answer is missing, and reach the “None of the above” trivially. Still, the accuracy is very low compared to the baseline, and to be fair, this is a harder benchmark now.  So the result is probably quite fair and hopefully isolates deduction, but we don't know how humans would to on modifications like this.
+We did some heavy modification; they force the model to reason about each option and rule them out one by one, although being familiar with the dataset could mean that the model could recognize the correct answer is missing, and reach the “None of the above” trivially. The resulting drop from 91.3% to 65% is highly significant (Fisher's exact test, p < 10⁻⁸), and 65% is also significantly below the 86% human baseline (binomial test, p < 10⁻⁶), although humans were not tested on this modified format. We also can't say how much of the drop came from the fact that the model can't rely on memorization any more or the fact that the benchmark is harder now.
 
 # What can we conclude from LogiQA 2.0 results
 
