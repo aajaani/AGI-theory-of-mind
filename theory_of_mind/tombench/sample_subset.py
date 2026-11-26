@@ -22,11 +22,24 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output", type=str, default="")
     parser.add_argument("--within", type=str, default="", help="sample from this question file instead of the full data")
+    parser.add_argument("--all", action="store_true", help="take every question of the 8 tasks, in random order")
     args = parser.parse_args()
 
-    output = args.output or f"subsets/tombench_{args.per_task}pertask_seed{args.seed}.jsonl"
     rng = random.Random(args.seed)
     records = read_questions(args.within) if args.within else load_all()
+
+    if args.all:
+        # Random order, so a run that is stopped partway is still a random sample.
+        picked = [r for r in records if r["file"] in TASK_FILES]
+        rng.shuffle(picked)
+        for r in picked:
+            r["variant"] = "original"
+        output = args.output or f"subsets/tombench_all_seed{args.seed}.jsonl"
+        write_questions(output, picked)
+        print(f"wrote {len(picked)} questions to {output}")
+        raise SystemExit
+
+    output = args.output or f"subsets/tombench_{args.per_task}pertask_seed{args.seed}.jsonl"
 
     picked = []
     for task in TASK_FILES:

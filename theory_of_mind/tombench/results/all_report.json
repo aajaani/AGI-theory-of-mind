@@ -1,0 +1,205 @@
+{
+  "claude-code claude-opus-5-5 effort=medium lang=en variant=original": {
+    "n_questions": 2470,
+    "attempts_per_question": {
+      "5": 2470
+    },
+    "tasks": {
+      "Unexpected Outcome Test": {
+        "n": 300,
+        "acc": 81.0,
+        "human": 89.3
+      },
+      "Scalar Implicature Test": {
+        "n": 200,
+        "acc": 65.5,
+        "human": 75.5
+      },
+      "Persuasion Story Task": {
+        "n": 100,
+        "acc": 69.0,
+        "human": 70.0
+      },
+      "False Belief Task": {
+        "n": 600,
+        "acc": 89.5,
+        "human": 86.8
+      },
+      "Ambiguous Story Task": {
+        "n": 200,
+        "acc": 90.5,
+        "human": 95.0
+      },
+      "Hinting Task Test": {
+        "n": 103,
+        "acc": 98.06,
+        "human": 97.1
+      },
+      "Strange Story Task": {
+        "n": 407,
+        "acc": 92.63,
+        "human": 89.2
+      },
+      "Faux-pas Recognition Test": {
+        "n": 560,
+        "acc": 87.14,
+        "human": 80.4
+      }
+    },
+    "task_average": {
+      "acc": 84.17,
+      "ci95": 0.0,
+      "human": 85.4,
+      "verdict": "below the human average"
+    },
+    "category": {
+      "Belief": {
+        "n": 882,
+        "acc": 89.12
+      },
+      "Desire": {
+        "n": 140,
+        "acc": 71.43
+      },
+      "Emotion": {
+        "n": 240,
+        "acc": 82.08
+      },
+      "Intention": {
+        "n": 260,
+        "acc": 95.38
+      },
+      "Knowledge": {
+        "n": 200,
+        "acc": 65.5
+      },
+      "Non-Literal Communication": {
+        "n": 748,
+        "acc": 88.9
+      }
+    },
+    "ability": {
+      "Belief: Beliefs based action/emotions": {
+        "n": 142,
+        "acc": 90.85
+      },
+      "Belief: Content false beliefs": {
+        "n": 200,
+        "acc": 75.5
+      },
+      "Belief: Identity false beliefs": {
+        "n": 40,
+        "acc": 100.0
+      },
+      "Belief: Location false beliefs": {
+        "n": 200,
+        "acc": 98.5
+      },
+      "Belief: Second-order beliefs": {
+        "n": 200,
+        "acc": 94.5
+      },
+      "Belief: Sequence false beliefs": {
+        "n": 100,
+        "acc": 80.0
+      },
+      "Desire: Desire-action contradiction": {
+        "n": 40,
+        "acc": 77.5
+      },
+      "Desire: Desires influence on actions/emotions": {
+        "n": 100,
+        "acc": 69.0
+      },
+      "Emotion: Atypical emotional reactions": {
+        "n": 100,
+        "acc": 70.0
+      },
+      "Emotion: Mixed emotions": {
+        "n": 40,
+        "acc": 85.0
+      },
+      "Emotion: Typical emotional reactions": {
+        "n": 100,
+        "acc": 93.0
+      },
+      "Intention: Intentions explanations": {
+        "n": 260,
+        "acc": 95.38
+      },
+      "Knowledge: Information-knowledge links": {
+        "n": 200,
+        "acc": 65.5
+      },
+      "Non-Literal Communication: Egocentric lies": {
+        "n": 40,
+        "acc": 92.5
+      },
+      "Non-Literal Communication: Faux pas": {
+        "n": 560,
+        "acc": 87.14
+      },
+      "Non-Literal Communication: Humor": {
+        "n": 40,
+        "acc": 97.5
+      },
+      "Non-Literal Communication: Involuntary lies": {
+        "n": 42,
+        "acc": 88.1
+      },
+      "Non-Literal Communication: Irony/Sarcasm": {
+        "n": 26,
+        "acc": 100.0
+      },
+      "Non-Literal Communication: White lies": {
+        "n": 40,
+        "acc": 95.0
+      }
+    },
+    "coherent": {
+      "Unexpected Outcome Test": {
+        "stories": 100,
+        "acc": 52.0
+      },
+      "Scalar Implicature Test": {
+        "stories": 100,
+        "acc": 44.0
+      },
+      "Persuasion Story Task": {
+        "stories": 100,
+        "acc": 69.0
+      },
+      "False Belief Task": {
+        "stories": 100,
+        "acc": 55.0
+      },
+      "Ambiguous Story Task": {
+        "stories": 100,
+        "acc": 83.0
+      },
+      "Hinting Task Test": {
+        "stories": 93,
+        "acc": 97.85
+      },
+      "Strange Story Task": {
+        "stories": 201,
+        "acc": 86.57
+      },
+      "Faux-pas Recognition Test": {
+        "stories": 141,
+        "acc": 58.87
+      }
+    },
+    "attempts": {
+      "total": 12350,
+      "parse_status": {
+        "ok": 12350
+      },
+      "unparsed_rate": 0.0,
+      "ties": 3,
+      "input_tokens": 12441186,
+      "output_tokens": 628903,
+      "cost_usd": 100.3739
+    }
+  }
+}

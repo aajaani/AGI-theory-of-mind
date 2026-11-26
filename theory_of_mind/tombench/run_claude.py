@@ -243,6 +243,8 @@ if __name__ == "__main__":
     parser.add_argument("--timeout", type=int, default=600, help="claude-code backend: seconds per call")
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--max_retries", type=int, default=8)
+    parser.add_argument("--max_failures", type=int, default=0,
+                        help="stop after this many failed calls in a row, e.g. when a usage limit is hit (0 = never)")
     parser.add_argument("--limit", type=int, default=0, help="only the first N questions (for test runs)")
     parser.add_argument("--dry_run", action="store_true", help="print prompts without calling the model")
     args = parser.parse_args()
@@ -278,7 +280,7 @@ if __name__ == "__main__":
     print(f"{len(questions)} questions x {args.try_times} attempts: {len(done)} already done, {len(todo)} to run ({args.backend})")
 
     runner = Runner(args, settings)
-    failed = skipped = 0
+    failed = skipped = streak = 0
     statuses = {}
     fatal = ()
     if args.backend == "api":
@@ -293,6 +295,7 @@ if __name__ == "__main__":
             try:
                 row = fut.result()
                 statuses[row["parse_status"]] = statuses.get(row["parse_status"], 0) + 1
+                streak = 0
             except BudgetReached:
                 skipped += 1
             except fatal as e:
@@ -300,7 +303,12 @@ if __name__ == "__main__":
                 sys.exit(f"stopping: {type(e).__name__}: {e}")
             except transient as e:
                 failed += 1
+                streak += 1
                 tqdm.write(f"{futures[fut]} failed: {type(e).__name__}: {e}")
+                if args.max_failures and streak >= args.max_failures:
+                    tqdm.write(f"stopping after {streak} failed calls in a row")
+                    pool.shutdown(wait=False, cancel_futures=True)
+                    break
 
     print(f"done. parse status counts: {statuses}. spent ~${runner.spent:.2f}"
           + (" (list-price equivalent; a subscription is not billed per call)" if args.backend == "claude-code" else ""))
